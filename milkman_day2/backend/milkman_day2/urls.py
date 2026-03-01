@@ -30,5 +30,5 @@ urlpatterns = [
     path('product/', include('product.urls')),
     path('subscription/', include('subscription.urls')),
     path('milk-admin/', include('milk_admin.urls')),
-    # path('order/', include('order.urls')),
+    path('order/', include('order.urls')),
 ]

@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'product',
     'subscription',
     'milk_admin',
+    'order',
 ]
 
 MIDDLEWARE = [
