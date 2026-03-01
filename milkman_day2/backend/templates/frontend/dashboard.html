@@ -1,0 +1,92 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Dashboard - Milkman Pro{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+</div>
+
+<div class="row">
+    <!-- Total Customers -->
+    <div class="col-md-4 mb-4">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Total Customers</h5>
+                <h2 class="display-4">{{ total_customers }}</h2>
+            </div>
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <a class="small text-white stretched-link" href="{% url 'frontend-customer-list' %}">View Details</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Products -->
+    <div class="col-md-4 mb-4">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Total Products</h5>
+                <h2 class="display-4">{{ total_products }}</h2>
+            </div>
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <a class="small text-white stretched-link" href="{% url 'frontend-product-list' %}">View Details</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Subscriptions -->
+    <div class="col-md-4 mb-4">
+        <div class="card bg-warning text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Active Subscriptions</h5>
+                <h2 class="display-4">{{ total_subscriptions }}</h2>
+            </div>
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <a class="small text-white stretched-link" href="{% url 'frontend-subscription-list' %}">View Details</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Recent Subscriptions</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Start Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sub in recent_subscriptions %}
+                    <tr>
+                        <td>{{ sub.customer.name }}</td>
+                        <td>{{ sub.product.name }}</td>
+                        <td>{{ sub.quantity }}</td>
+                        <td>{{ sub.start_date }}</td>
+                        <td>
+                            {% if sub.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">No subscriptions found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
