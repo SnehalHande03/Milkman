@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path,include
 from .views import api_root
 
+
 urlpatterns = [
     path('', api_root, name='api-root'),
     path('admin/', admin.site.urls),
@@ -31,4 +32,6 @@ urlpatterns = [
     path('subscription/', include('subscription.urls')),
     path('milk-admin/', include('milk_admin.urls')),
     path('order/', include('order.urls')),
+    # path('checkout/',CheckoutView.as_view()),
+    # path('payment/',PaymentView.as_view()),
 ]

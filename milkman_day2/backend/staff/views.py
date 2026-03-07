@@ -6,7 +6,10 @@ from .models import staff
 from .serializers import StaffSerializer
 
 from rest_framework.permissions import AllowAny
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
+@method_decorator(csrf_exempt, name='dispatch')
 class StaffSignup(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
@@ -21,6 +24,7 @@ class StaffSignup(APIView):
             return Response({'status': 'success', 'user': serializer.data}, status=status.HTTP_201_CREATED)
         return Response({'status': 'error', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
+@method_decorator(csrf_exempt, name='dispatch')
 class StaffLogin(APIView):
     permission_classes = [AllowAny]
     def post(self, request):

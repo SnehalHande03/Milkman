@@ -3,7 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import './App.css'
 
 function App() {
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')) || null)
+  const [user, setUser] = useState(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('user'))
+      return parsed && typeof parsed === 'object' && parsed.id ? parsed : null
+    } catch {
+      return null
+    }
+  })
   const [isAuthenticated, setIsAuthenticated] = useState(!!user)
   const [isSignup, setIsSignup] = useState(false)
   const [currentView, setView] = useState('dashboard')
@@ -12,6 +19,7 @@ function App() {
   const [categories, setCategories] = useState([])
   const [products, setProducts] = useState([])
   const [cart, setCart] = useState(JSON.parse(localStorage.getItem('cart')) || [])
+  const [lastPurchasedItems, setLastPurchasedItems] = useState([])
   const [orderSummary, setOrderSummary] = useState(null)
   const [paymentStatus, setPaymentStatus] = useState(null)
   const [checkoutError, setCheckoutError] = useState(null)
@@ -19,9 +27,73 @@ function App() {
   const [authData, setAuthData] = useState({ name: '', email: '', password: '', phone: '', address: '', role: 'staff' })
   const [error, setError] = useState('')
   const [adminData, setAdminData] = useState(null)
+  const [showOrderSuccess, setShowOrderSuccess] = useState(false)
+  const [showPlanPicker, setShowPlanPicker] = useState(false)
+  const [plan, setPlan] = useState('one_month')
+  const [subscriptionMsg, setSubscriptionMsg] = useState('')
+  const [subscriptionErr, setSubscriptionErr] = useState('')
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [billingAddress, setBillingAddress] = useState(user?.address || authData.address || '')
+  const [deliveryTime, setDeliveryTime] = useState('Morning (8-10 AM)')
+  const [paymentMethod, setPaymentMethod] = useState('upi')
 
-  const API_BASE = "" // use dev proxy base
+  const API_BASE = ""
  
+  const fetchJSON = async (path, init) => {
+    try {
+      let res = await fetch(`${API_BASE}${path}`, init)
+      if (!res.ok && API_BASE === '') {
+        res = await fetch(`http://127.0.0.1:8000${path}`, init)
+      }
+      return res
+    } catch (e) {
+      if (API_BASE === '') {
+        return await fetch(`http://127.0.0.1:8000${path}`, init)
+      }
+      throw e
+    }
+  }
+
+  const ensureCustomer = async () => {
+    try {
+      const list = await fetchJSON('/customer/').then(r => r.json()).catch(() => [])
+      const match = Array.isArray(list) ? list.find(c => c.email === (user?.email || authData.email)) : null
+      if (match) return match
+      const payload = {
+        name: user?.name || authData.name || 'Customer',
+        email: user?.email || authData.email,
+        phone: user?.phone || authData.phone || 'N/A',
+        address: user?.address || authData.address || '',
+        password: user?.password || authData.password || 'password123'
+      }
+      const res = await fetchJSON('/customer/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      return await res.json()
+    } catch (e) {
+      throw new Error('Unable to ensure customer record')
+    }
+  }
+
+  const createSubscriptions = async (planChoice) => {
+    setSubscriptionErr('')
+    setSubscriptionMsg('')
+    try {
+      const cust = await ensureCustomer()
+      const startDate = new Date().toISOString().slice(0,10)
+      const itemsForSubscription = lastPurchasedItems.length ? lastPurchasedItems : cart
+      for (const i of itemsForSubscription) {
+        const body = { customer: cust.id, product: i.id, quantity: i.qty, start_date: startDate, is_active: true }
+        const res = await fetchJSON('/subscription/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err?.detail || err?.message || 'Failed to create subscription')
+        }
+      }
+      setSubscriptionMsg(`${planChoice === 'six_month' ? '6 month' : '1 month'} subscription activated for your items.`)
+      setShowPlanPicker(false)
+    } catch (e) {
+      setSubscriptionErr(e?.message || 'Subscription failed')
+    }
+  }
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -60,14 +132,33 @@ function App() {
           localStorage.setItem('user', JSON.stringify(data.user))
           setUser(data.user)
           setIsAuthenticated(true)
-          setView('products')
+          setView('dashboard')
           setError('')
         }
       } else {
         setError((data && (data.message || data.detail)) ? `${data.message || data.detail}` : `Auth failed (status ${res.status})`)
       }
     } catch (err) {
-      setError(`Connection error: ${err?.message || 'network failed'}`)
+      try {
+        const res = await fetch(`http://127.0.0.1:8000${endpoint}`, payload)
+        const data = await res.json().catch(() => ({}))
+        if (res.ok) {
+          if (isSignup) {
+            setIsSignup(false)
+            setError('Signup successful! Please login.')
+          } else {
+            localStorage.setItem('user', JSON.stringify(data.user))
+            setUser(data.user)
+            setIsAuthenticated(true)
+            setView('dashboard')
+            setError('')
+          }
+        } else {
+          setError((data && (data.message || data.detail)) ? `${data.message || data.detail}` : `Auth failed (status ${res.status})`)
+        }
+      } catch (e2) {
+        setError(`Connection error: ${err?.message || 'network failed'}`)
+      }
     }
   }
 
@@ -111,19 +202,15 @@ function App() {
       items: cart.map(i => ({ product_id: i.id, quantity: i.qty }))
     }
     try {
-      let res = await fetch(`${API_BASE}/order/checkout/`, {
+      let res = await fetchJSON('/order/checkout/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      if (!res.ok && API_BASE === '') {
-        res = await fetch(`http://127.0.0.1:8000/order/checkout/`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-        })
-      }
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setOrderSummary(data)
+        setView('billing')
       } else {
         setOrderSummary(null)
         setCheckoutError((data && (data.message || data.detail)) ? `${data.message || data.detail}` : `Checkout failed (status ${res.status})`)
@@ -136,20 +223,19 @@ function App() {
   const handlePayment = async (method) => {
     if (!orderSummary) return
     setPaymentError(null)
+    const sendMethod = method === 'upi' ? 'card' : method
+    setShowPaymentModal(false)
     try {
-      let res = await fetch(`${API_BASE}/order/payment/`, {
+      let res = await fetchJSON('/order/payment/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderSummary.order_id, method })
+        body: JSON.stringify({ order_id: orderSummary.order_id, method: sendMethod })
       })
-      if (!res.ok && API_BASE === '') {
-        res = await fetch(`http://127.0.0.1:8000/order/payment/`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order_id: orderSummary.order_id, method })
-        })
-      }
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
+        setLastPurchasedItems([...cart])
         setPaymentStatus(data.status)
+        setShowOrderSuccess(true)
         setCart([])
         localStorage.removeItem('cart')
       } else {
@@ -165,9 +251,9 @@ function App() {
     try {
       if (view === 'dashboard') {
         const [custRes, prodRes, catRes] = await Promise.all([
-          fetch(`${API_BASE}/customer/`).then(r => r.json()),
-          fetch(`${API_BASE}/product/`).then(r => r.json()),
-          fetch(`${API_BASE}/category/`).then(r => r.json())
+          fetchJSON('/customer/').then(r => r.json()),
+          fetchJSON('/product/').then(r => r.json()),
+          fetchJSON('/category/').then(r => r.json())
         ])
         setStats({
           customers: Array.isArray(custRes) ? custRes.length : 0,
@@ -175,16 +261,16 @@ function App() {
           categories: Array.isArray(catRes) ? catRes.length : 0
         })
       } else if (view === 'customers') {
-        const res = await fetch(`${API_BASE}/customer/`).then(r => r.json())
+        const res = await fetchJSON('/customer/').then(r => r.json())
         setCustomers(Array.isArray(res) ? res : [])
       } else if (view === 'categories') {
-        const res = await fetch(`${API_BASE}/category/`).then(r => r.json())
+        const res = await fetchJSON('/category/').then(r => r.json())
         setCategories(Array.isArray(res) ? res : [])
       } else if (view === 'products') {
-        const res = await fetch(`${API_BASE}/product/`).then(r => r.json())
+        const res = await fetchJSON('/product/').then(r => r.json())
         setProducts(Array.isArray(res) ? res : [])
       } else if (view === 'admin') {
-        const res = await fetch(`${API_BASE}/milk-admin/dashboard/`).then(r => r.json())
+        const res = await fetchJSON('/milk-admin/dashboard/').then(r => r.json())
         setAdminData(res)
       }
     } catch (error) {
@@ -338,7 +424,7 @@ function App() {
       >
         <div className="logo-container">
           <h2>Milkman Pro</h2>
-          <small style={{ color: 'var(--primary-green)', opacity: 0.7 }}>Role: {user.role.toUpperCase()}</small>
+          <small style={{ color: 'var(--primary-green)', opacity: 0.7 }}>Role: {(user?.role || 'staff').toUpperCase()}</small>
         </div>
         <ul className="nav-links">
           <motion.li 
@@ -652,8 +738,8 @@ function App() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem' }}>
                               <strong>Total: ${Number(orderSummary.total_amount).toFixed(2)}</strong>
                               <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <motion.button className="login-btn" onClick={() => handlePayment('card')}>Pay by Card</motion.button>
-                                <motion.button className="login-btn" onClick={() => handlePayment('cod')}>Cash on Delivery</motion.button>
+                                <motion.button className="login-btn" onClick={() => handlePayment('upi')}>Pay by UPI</motion.button>
+                                <motion.button className="login-btn" onClick={() => handlePayment('cod')}>Pay by Cash</motion.button>
                               </div>
                             </div>
                             {paymentStatus && (
@@ -669,6 +755,72 @@ function App() {
                       )}
                     </>
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {currentView === 'billing' && orderSummary && (
+              <motion.div variants={itemVariants}>
+                <div className="section-title">
+                  <h3>Billing</h3>
+                  <span style={{ fontSize: '1rem', color: 'var(--text-light)' }}>Total: ${Number(orderSummary.total_amount).toFixed(2)}</span>
+                </div>
+
+                <div className="data-container glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                  <div className="form-group">
+                    <label>Delivery Address</label>
+                    <textarea value={billingAddress} onChange={e => setBillingAddress(e.target.value)} rows={3} style={{ width: '100%', padding: '0.8rem', borderRadius: '10px', border: '2px solid #eee' }} />
+                  </div>
+                  <div className="form-group" style={{ marginTop: '0.8rem' }}>
+                    <label>Preferred Time</label>
+                    <select value={deliveryTime} onChange={e => setDeliveryTime(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '10px', border: '2px solid #eee' }}>
+                      <option>Morning (8-10 AM)</option>
+                      <option>Afternoon (12-2 PM)</option>
+                      <option>Evening (6-8 PM)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="data-container glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                  <h4 style={{ marginBottom: '0.5rem' }}>Order Summary</h4>
+                  {orderSummary.items && orderSummary.items.length > 0 ? (
+                    <table>
+                      <thead>
+                        <tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr>
+                      </thead>
+                      <tbody>
+                        {orderSummary.items.map((it, idx) => (
+                          <tr key={idx}>
+                            <td>{it.product}</td>
+                            <td>{it.quantity}</td>
+                            <td>${Number(it.price).toFixed(2)}</td>
+                            <td>${(Number(it.price) * Number(it.quantity)).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p>No item breakdown available.</p>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                    <strong>Total: ${Number(orderSummary.total_amount).toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                <div className="data-container glass-card" style={{ padding: '1rem' }}>
+                  <h4 style={{ marginBottom: '0.5rem' }}>Payment Method</h4>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <input type="radio" name="pay" checked={paymentMethod==='upi'} onChange={() => setPaymentMethod('upi')} /> UPI
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <input type="radio" name="pay" checked={paymentMethod==='cod'} onChange={() => setPaymentMethod('cod')} /> Cash
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+                    <motion.button className="login-btn" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => handlePayment(paymentMethod)}>Pay Now</motion.button>
+                  </div>
+                  {paymentError && <p style={{ color: '#e74c3c', marginTop: '0.5rem' }}>{paymentError}</p>}
                 </div>
               </motion.div>
             )}
@@ -709,9 +861,61 @@ function App() {
             )}
           </motion.div>
         </AnimatePresence>
+
+        {showPaymentModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div className="glass-card" style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '480px', width: '95%' }}>
+              <h3 style={{ marginBottom: '0.75rem' }}>Choose Payment Method</h3>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                <button className="login-btn" onClick={() => handlePayment('upi')}>UPI</button>
+                <button className="login-btn" onClick={() => handlePayment('cod')}>Cash</button>
+              </div>
+              <div style={{ marginTop: '0.75rem', textAlign: 'right' }}>
+                <span className="logout-link" onClick={() => setShowPaymentModal(false)}>Cancel</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showOrderSuccess && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div className="glass-card" style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '520px', width: '95%' }}>
+              <h3 style={{ marginBottom: '0.75rem' }}>Payment Receipt</h3>
+              <p><strong>Order ID:</strong> #{orderSummary?.order_id}</p>
+              <p><strong>Payment Method:</strong> {paymentMethod === 'upi' ? 'UPI' : 'Cash'}</p>
+              <p><strong>Amount Paid:</strong> ${Number(orderSummary?.total_amount || 0).toFixed(2)}</p>
+              <p style={{ marginBottom: '1rem' }}><strong>Status:</strong> {paymentStatus}</p>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="login-btn" onClick={() => window.print()}>Print Receipt</button>
+                <button className="login-btn" onClick={() => { setShowOrderSuccess(false); setShowPlanPicker(true) }}>Choose Subscription</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPlanPicker && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+            <div className="glass-card" style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '520px', width: '95%' }}>
+              <h3 style={{ marginBottom: '0.75rem' }}>Choose Subscription</h3>
+              <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <button className="login-btn" onClick={() => setPlan('one_month')} style={{ opacity: plan === 'one_month' ? 1 : 0.7 }}>1 Month</button>
+                <button className="login-btn" onClick={() => setPlan('six_month')} style={{ opacity: plan === 'six_month' ? 1 : 0.7 }}>6 Month</button>
+              </div>
+              {subscriptionErr && <p style={{ color: '#e74c3c' }}>{subscriptionErr}</p>}
+              {subscriptionMsg && <p style={{ color: '#4CAF50' }}>{subscriptionMsg}</p>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
+                <span className="logout-link" onClick={() => setShowPlanPicker(false)}>Skip</span>
+                <button className="login-btn" onClick={() => createSubscriptions(plan)}>Activate</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   )
 }
 
 export default App
+
+
