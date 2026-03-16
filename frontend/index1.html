@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="milkmanApp">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milkman Pro - Simple UI</title>
+    <!-- Simple CSS -->
+    <!-- AngularJS -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <style>
+        .nav { margin-bottom: 2rem; }
+        .nav a { margin-right: 1rem; cursor: pointer; }
+        .card { border: 1px solid #ccc; padding: 1rem; margin-bottom: 1rem; border-radius: 4px; }
+        .badge { background: #eee; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+    </style>
+</head>
+<body ng-controller="MainCtrl">
+    <header>
+        <h1>Milkman Management</h1>
+        <nav class="nav">
+            <a ng-click="setView('dashboard')">Dashboard</a>
+            <a ng-click="setView('customers')">Customers</a>
+            <a ng-click="setView('categories')">Categories</a>
+            <a ng-click="setView('products')">Products</a>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Dashboard -->
+        <div ng-if="currentView == 'dashboard'">
+            <h2>Dashboard</h2>
+            <div style="display: flex; gap: 1rem;">
+                <div class="card">
+                    <h3>Customers</h3>
+                    <p>{{stats.customers}}</p>
+                </div>
+                <div class="card">
+                    <h3>Products</h3>
+                    <p>{{stats.products}}</p>
+                </div>
+                <div class="card">
+                    <h3>Categories</h3>
+                    <p>{{stats.categories}}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customers -->
+        <div ng-if="currentView == 'customers'">
+            <h2>Customers</h2>
+            <table>
+                <thead>
+                    <tr><th>Name</th><th>Email</th><th>Phone</th></tr>
+                </thead>
+                <tbody>
+                    <tr ng-repeat="c in customers">
+                        <td>{{c.name}}</td>
+                        <td>{{c.email}}</td>
+                        <td>{{c.phone}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Categories -->
+        <div ng-if="currentView == 'categories'">
+            <h2>Categories</h2>
+            <table>
+                <thead>
+                    <tr><th>Name</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr ng-repeat="cat in categories">
+                        <td>{{cat.name}}</td>
+                        <td>{{cat.description}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Products -->
+        <div ng-if="currentView == 'products'">
+            <h2>Products</h2>
+            <div ng-repeat="p in products" class="card">
+                <h3>{{p.name}} <span class="badge">{{p.category_name}}</span></h3>
+                <p>Price: ${{p.price}} per {{p.unit}}</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        var app = angular.module('milkmanApp', []);
+        app.controller('MainCtrl', function($scope, $http) {
+            var API_BASE = "http://127.0.0.1:8000";
+            $scope.currentView = 'dashboard';
+            $scope.stats = {};
+
+            $scope.setView = function(view) {
+                $scope.currentView = view;
+                $scope.loadData(view);
+            };
+
+            $scope.loadData = function(view) {
+                if(view == 'dashboard') {
+                    $http.get(API_BASE + '/customer/').then(r => $scope.stats.customers = r.data.length);
+                    $http.get(API_BASE + '/product/').then(r => $scope.stats.products = r.data.length);
+                    $http.get(API_BASE + '/category/').then(r => $scope.stats.categories = r.data.length);
+                } else if(view == 'customers') {
+                    $http.get(API_BASE + '/customer/').then(r => $scope.customers = r.data);
+                } else if(view == 'categories') {
+                    $http.get(API_BASE + '/category/').then(r => $scope.categories = r.data);
+                } else if(view == 'products') {
+                    $http.get(API_BASE + '/product/').then(r => $scope.products = r.data);
+                }
+            };
+
+            // Initial load
+            $scope.loadData('dashboard');
+        });
+    </script>
+</body>
+</html>
+

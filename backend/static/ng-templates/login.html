@@ -1,0 +1,38 @@
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="text-center mb-5">
+            <div class="mb-3">
+                <i class="fas fa-tint fa-3x text-primary opacity-75"></i>
+            </div>
+            <h3 class="fw-bold text-dark">Milkman Pro</h3>
+            <p class="text-muted small">Sign in to manage your dairy business</p>
+        </div>
+        
+        <form ng-submit="login()">
+            <div class="mb-3">
+                <label class="form-label small fw-bold text-muted">EMAIL ADDRESS</label>
+                <input type="email" class="form-control border-light-subtle py-2" ng-model="credentials.email" required placeholder="admin@milkman.com" style="background-color: #f8fafc;">
+            </div>
+            
+            <div class="mb-4">
+                <label class="form-label small fw-bold text-muted">PASSWORD</label>
+                <input type="password" class="form-control border-light-subtle py-2" ng-model="credentials.password" required placeholder="••••••••" style="background-color: #f8fafc;">
+            </div>
+
+            <div ng-if="error" class="alert alert-danger border-0 small py-2 mb-4 text-center">
+                {{error}}
+            </div>
+
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary py-2 fw-semibold">
+                    Sign In
+                </button>
+            </div>
+        </form>
+
+        <div class="mt-5 pt-3 border-top text-center">
+            <p class="small text-muted mb-1">Testing Access:</p>
+            <code class="text-primary small">admin@milkman.com / password123</code>
+        </div>
+    </div>
+</div>
