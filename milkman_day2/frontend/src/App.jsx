@@ -37,21 +37,12 @@ function App() {
   const [deliveryTime, setDeliveryTime] = useState('Morning (8-10 AM)')
   const [paymentMethod, setPaymentMethod] = useState('upi')
 
-  const API_BASE = ""
+  // Always prefer the deployed HTTPS backend; only use localhost if explicitly set.
+  const API_BASE = (import.meta.env?.VITE_API_BASE || 'https://milkman11.duckdns.org').replace(/\/$/, '')
  
   const fetchJSON = async (path, init) => {
-    try {
-      let res = await fetch(`${API_BASE}${path}`, init)
-      if (!res.ok && API_BASE === '') {
-        res = await fetch(`http://127.0.0.1:8000${path}`, init)
-      }
-      return res
-    } catch (e) {
-      if (API_BASE === '') {
-        return await fetch(`http://127.0.0.1:8000${path}`, init)
-      }
-      throw e
-    }
+    const base = API_BASE || 'https://milkman11.duckdns.org'
+    return await fetch(`${base}${path}`, init)
   }
 
   const ensureCustomer = async () => {
@@ -118,11 +109,7 @@ function App() {
       body: JSON.stringify(authData)
     }
     try {
-      let res = await fetch(`${API_BASE}${endpoint}`, payload)
-      if (!res.ok && API_BASE === '') {
-        // Fallback to direct backend origin if proxy is misconfigured
-        res = await fetch(`http://127.0.0.1:8000${endpoint}`, payload)
-      }
+      const res = await fetchJSON(endpoint, payload)
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         if (isSignup) {
@@ -139,26 +126,7 @@ function App() {
         setError((data && (data.message || data.detail)) ? `${data.message || data.detail}` : `Auth failed (status ${res.status})`)
       }
     } catch (err) {
-      try {
-        const res = await fetch(`http://127.0.0.1:8000${endpoint}`, payload)
-        const data = await res.json().catch(() => ({}))
-        if (res.ok) {
-          if (isSignup) {
-            setIsSignup(false)
-            setError('Signup successful! Please login.')
-          } else {
-            localStorage.setItem('user', JSON.stringify(data.user))
-            setUser(data.user)
-            setIsAuthenticated(true)
-            setView('dashboard')
-            setError('')
-          }
-        } else {
-          setError((data && (data.message || data.detail)) ? `${data.message || data.detail}` : `Auth failed (status ${res.status})`)
-        }
-      } catch (e2) {
-        setError(`Connection error: ${err?.message || 'network failed'}`)
-      }
+      setError(`Connection error: ${err?.message || 'network failed'}`)
     }
   }
 
@@ -652,11 +620,14 @@ function App() {
                           <img 
                             src={p.image_url} 
                             alt={p.name} 
-                            style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} 
-                            onError={(e) => { e.target.src = 'https://via.placeholder.com/200?text=Milk'; }}
+                            style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '4px solid white', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }} 
+                            onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1550583724-1255818c0533?q=80&w=200&h=200&auto=format&fit=crop'; }}
                           />
                         ) : (
-                          <span style={{ fontSize: '3rem' }}>🥛</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <span style={{ fontSize: '3.5rem' }}>🥛</span>
+                            <small style={{ color: 'var(--text-light)', fontWeight: 'bold', fontSize: '0.6rem' }}>FRESH DAIRY</small>
+                          </div>
                         )}
                         <div className="price-tag">${p.price}</div>
                       </div>
@@ -917,5 +888,3 @@ function App() {
 }
 
 export default App
-
-
