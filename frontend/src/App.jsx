@@ -29,6 +29,14 @@ function App() {
   const [adminData, setAdminData] = useState(null)
   const [showOrderSuccess, setShowOrderSuccess] = useState(false)
   const [showPlanPicker, setShowPlanPicker] = useState(false)
+  const [showSubscriptionSummary, setShowSubscriptionSummary] = useState(false)
+  const [subscriptionDetails, setSubscriptionDetails] = useState(null)
+  const planOptions = [
+    { id: '15_day', label: '15 Days', note: 'Great for a short trial' },
+    { id: 'one_month', label: '1 Month', note: 'Monthly renewal' },
+    { id: 'six_month', label: '6 Month', note: 'Half-year, save more' },
+    { id: 'one_year', label: '1 Year', note: 'Best value annual' },
+  ]
   const [plan, setPlan] = useState('one_month')
   const [subscriptionMsg, setSubscriptionMsg] = useState('')
   const [subscriptionErr, setSubscriptionErr] = useState('')
@@ -37,21 +45,11 @@ function App() {
   const [deliveryTime, setDeliveryTime] = useState('Morning (8-10 AM)')
   const [paymentMethod, setPaymentMethod] = useState('upi')
 
-  const API_BASE = ""
+  // Prefer an explicit API base via env; otherwise infer from current host (port 8000).
+  const API_BASE = import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:8000`
  
   const fetchJSON = async (path, init) => {
-    try {
-      let res = await fetch(`${API_BASE}${path}`, init)
-      if (!res.ok && API_BASE === '') {
-        res = await fetch(`http://127.0.0.1:8000${path}`, init)
-      }
-      return res
-    } catch (e) {
-      if (API_BASE === '') {
-        return await fetch(`http://127.0.0.1:8000${path}`, init)
-      }
-      throw e
-    }
+    return await fetch(`${API_BASE}${path}`, init)
   }
 
   const ensureCustomer = async () => {
@@ -88,8 +86,15 @@ function App() {
           throw new Error(err?.detail || err?.message || 'Failed to create subscription')
         }
       }
-      setSubscriptionMsg(`${planChoice === 'six_month' ? '6 month' : '1 month'} subscription activated for your items.`)
+      const picked = planOptions.find(p => p.id === planChoice)
+      setSubscriptionMsg(`${picked?.label || 'Subscription'} activated for your items.`)
+      setSubscriptionDetails({
+        plan: picked?.label || planChoice,
+        startDate,
+        itemCount: itemsForSubscription.length,
+      })
       setShowPlanPicker(false)
+      setShowSubscriptionSummary(true)
     } catch (e) {
       setSubscriptionErr(e?.message || 'Subscription failed')
     }
@@ -118,11 +123,7 @@ function App() {
       body: JSON.stringify(authData)
     }
     try {
-      let res = await fetch(`${API_BASE}${endpoint}`, payload)
-      if (!res.ok && API_BASE === '') {
-        // Fallback to direct backend origin if proxy is misconfigured
-        res = await fetch(`http://127.0.0.1:8000${endpoint}`, payload)
-      }
+      const res = await fetch(`${API_BASE}${endpoint}`, payload)
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         if (isSignup) {
@@ -139,26 +140,7 @@ function App() {
         setError((data && (data.message || data.detail)) ? `${data.message || data.detail}` : `Auth failed (status ${res.status})`)
       }
     } catch (err) {
-      try {
-        const res = await fetch(`http://127.0.0.1:8000${endpoint}`, payload)
-        const data = await res.json().catch(() => ({}))
-        if (res.ok) {
-          if (isSignup) {
-            setIsSignup(false)
-            setError('Signup successful! Please login.')
-          } else {
-            localStorage.setItem('user', JSON.stringify(data.user))
-            setUser(data.user)
-            setIsAuthenticated(true)
-            setView('dashboard')
-            setError('')
-          }
-        } else {
-          setError((data && (data.message || data.detail)) ? `${data.message || data.detail}` : `Auth failed (status ${res.status})`)
-        }
-      } catch (e2) {
-        setError(`Connection error: ${err?.message || 'network failed'}`)
-      }
+      setError(`Connection error: ${err?.message || 'network failed'}`)
     }
   }
 
@@ -897,15 +879,47 @@ function App() {
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
             <div className="glass-card" style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '520px', width: '95%' }}>
               <h3 style={{ marginBottom: '0.75rem' }}>Choose Subscription</h3>
-              <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                <button className="login-btn" onClick={() => setPlan('one_month')} style={{ opacity: plan === 'one_month' ? 1 : 0.7 }}>1 Month</button>
-                <button className="login-btn" onClick={() => setPlan('six_month')} style={{ opacity: plan === 'six_month' ? 1 : 0.7 }}>6 Month</button>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                {planOptions.map(opt => (
+                  <button
+                    key={opt.id}
+                    className="login-btn"
+                    onClick={() => setPlan(opt.id)}
+                    style={{
+                      opacity: plan === opt.id ? 1 : 0.7,
+                      border: plan === opt.id ? '2px solid #2e8b57' : '1px solid #dfe6e9',
+                      background: plan === opt.id ? '#2e8b57' : '#44bd32',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      padding: '0.9rem',
+                      gap: '0.35rem'
+                    }}
+                  >
+                    <span style={{ fontWeight: 800 }}>{opt.label}</span>
+                    <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>{opt.note}</span>
+                  </button>
+                ))}
               </div>
               {subscriptionErr && <p style={{ color: '#e74c3c' }}>{subscriptionErr}</p>}
               {subscriptionMsg && <p style={{ color: '#4CAF50' }}>{subscriptionMsg}</p>}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
                 <span className="logout-link" onClick={() => setShowPlanPicker(false)}>Skip</span>
                 <button className="login-btn" onClick={() => createSubscriptions(plan)}>Activate</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSubscriptionSummary && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+            <div className="glass-card" style={{ background: '#fff', padding: '2rem', borderRadius: '12px', maxWidth: '520px', width: '95%', textAlign: 'left' }}>
+              <h3 style={{ marginBottom: '0.5rem' }}>Subscription Activated</h3>
+              <p style={{ margin: '0.2rem 0' }}><strong>Plan:</strong> {subscriptionDetails?.plan}</p>
+              <p style={{ margin: '0.2rem 0' }}><strong>Start Date:</strong> {subscriptionDetails?.startDate}</p>
+              <p style={{ margin: '0.2rem 0' }}><strong>Items Covered:</strong> {subscriptionDetails?.itemCount ?? 0}</p>
+              {subscriptionMsg && <p style={{ color: '#2ecc71', marginTop: '0.5rem' }}>{subscriptionMsg}</p>}
+              <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button className="login-btn" onClick={() => { setShowSubscriptionSummary(false); setSubscriptionMsg(''); }}>Close</button>
               </div>
             </div>
           </div>

@@ -25,7 +25,12 @@ SECRET_KEY = 'django-insecure-nc^ucn)&3@tpyzhl@1)+zs2lke1t*8ksy^nm@k!ej9pnl(d%px
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = [
+    "127.0.0.1",
+    "localhost",
+    "milkman1.duckdns.org",
+    "20.11.16.55",
+]
 
 
 # Application definition
@@ -85,6 +90,12 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:8000",
     "http://localhost:8000",
+    "https://milkman1.duckdns.org",
+    "http://milkman1.duckdns.org",
+    "http://20.11.16.55:5173",
+    "http://20.11.16.55:8000",
+    "https://20.11.16.55",
+    "http://20.11.16.55",
 ]
 
 
